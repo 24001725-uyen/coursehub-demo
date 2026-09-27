@@ -64,4 +64,78 @@ def search_courses(keyword):
     return results
 print(search_courses("web"))
 
-print(1+1)
+def find_student(student_id):
+    for student in students:
+        if student["id"] == student_id:
+            return student
+    return None    
+
+def enroll_student(student_id, course_code):
+    student = find_student(student_id) 
+    if student is None:
+        return False, "Sinh vien khong ton tai"
+    
+    course = find_course(course_code)
+    if course is None:
+        return False, "Hoc phan khong ton tai"
+    
+    if course["enrolled"] >= course["capacity"]:
+        return False, "Lop khong con cho"
+    
+    duplicated = any(
+        item["student_id"] == student_id and item["course_code"] == course_code
+        for item in enrollments
+    )
+    if duplicated:
+        return False, "Sinh vien da dang ky hoc phan nay"
+
+    new_item = {"student_id": student_id, 
+                "course_code": course_code}
+    enrollments.append(new_item)
+
+    for course in courses:
+        if course["code"] == course_code:
+            course["enrolled"] += 1
+            break
+
+    return True, "Dang ky thanh cong"
+
+def original_data():
+    students = [
+    {"id": "22000001", "name": "Nguyen Minh Anh", "major": "KHDL"},
+    {"id": "22000002", "name": "Tran Duc Long", "major": "KHDL"},
+    ]
+    courses = [
+        {
+            "code": "INT2204",
+            "name": "Co so du lieu Web va he thong thong tin",
+            "capacity": 3,
+            "enrolled": 2,
+        },
+        {
+            "code": "INT2205",
+            "name": "Khai pha du lieu",
+            "capacity": 2,
+            "enrolled": 2,
+        },
+    ]
+    enrollments = [
+        {"student_id": "22000001", "course_code": "INT2204"}
+    ]
+    return students, courses, enrollments
+
+print("Test 1: Đăng ký thành công:")
+print(enroll_student("22000002", "INT2204"))
+
+print("Test 2: Đăng ký trùng:")
+students, courses, enrollments = original_data()
+print(enroll_student("22000001", "INT2204"))
+
+print("Test 3: Lớp đầy:")
+print(enroll_student("22000001", "INT2205"))
+
+print("Test 4: Mã học phần không tồn tại:")
+print(enroll_student("22000001", "INT2206"))
+
+print("Test 5: Mã sinh viên không tồn tại:")
+print(enroll_student("22000003", "INT2204"))
