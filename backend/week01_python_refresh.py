@@ -64,6 +64,4 @@ def search_courses(keyword):
     return results
 print(search_courses("web"))
 
-for course in courses:
-    remaining = course["capacity"] - course["enrolled"]
-    print(course["code"], "- con", remaining, "cho")
+print(1+1)
