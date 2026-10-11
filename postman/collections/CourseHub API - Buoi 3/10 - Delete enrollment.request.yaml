@@ -1,0 +1,4 @@
+$kind: http-request
+url: "{{base_url}}/enrollments/22000004/WEB-01"
+method: DELETE
+order: 8000

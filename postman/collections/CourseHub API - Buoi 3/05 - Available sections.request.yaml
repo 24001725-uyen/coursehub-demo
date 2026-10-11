@@ -1,0 +1,6 @@
+$kind: http-request
+url: "{{base_url}}/sections?available_only=true"
+method: GET
+queryParams:
+  available_only: "true"
+order: 5000
