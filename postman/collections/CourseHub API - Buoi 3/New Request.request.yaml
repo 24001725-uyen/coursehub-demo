@@ -1,0 +1,11 @@
+$kind: http-request
+url: "{{base_url}}/courses?skip=0&limit=2"
+method: GET
+queryParams:
+  skip: "0"
+  limit: "2"
+scripts:
+  - type: afterResponse
+    code: pm.response.to.have.status(200)
+    language: text/javascript
+order: 13000

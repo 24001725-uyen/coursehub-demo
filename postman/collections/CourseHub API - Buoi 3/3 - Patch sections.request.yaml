@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{base_url}}/sections/WEB-01/capacity"
+method: PATCH
+body:
+  type: json
+  content: '{"capacity": 4}'
+scripts:
+  - type: afterResponse
+    code: ""
+    language: text/javascript
+examples: .resources/3 - Patch sections.resources/examples
+order: 12000
