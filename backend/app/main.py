@@ -386,3 +386,39 @@ def list_courses(
     with engine.connect() as connection:
         rows = connection.execute(text(sql), parameters).mappings().all()
     return [dict(row) for row in rows]
+
+
+# Bài tập tự thực hành buổi 4
+
+# Bài 1
+from fastapi import Query
+from typing import Optional
+
+@app.get("/enrollment-events", status_code=200)
+def get_enrollment_events(
+    student_id: Optional[str] = None,
+    event_type: Optional[str] = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100)
+):
+    sql = """
+        SELECT id, student_id, class_section_id, event_type, source, dataset, occurred_at
+        FROM enrollment_events
+        WHERE 1=1
+    """
+    parameters = {"skip": skip, "limit": limit}
+
+    if student_id:
+        sql += " AND student_id = :student_id"
+        parameters["student_id"] = student_id
+    
+    if event_type:
+        sql += " AND event_type = :event_type"
+        parameters["event_type"] = event_type
+
+    sql += " ORDER BY occurred_at DESC, id DESC LIMIT :limit OFFSET :skip"
+
+    with engine.begin() as connection:
+        rows = connection.execute(text(sql), parameters).mappings().all()
+    
+    return {"events": [dict(row) for row in rows]}
