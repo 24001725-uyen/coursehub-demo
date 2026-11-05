@@ -388,33 +388,33 @@ def list_courses(
     return [dict(row) for row in rows]
 
 # Bai 2: 
-from sqlalchemy.exc import SQLAlchemyError
+# from sqlalchemy.exc import SQLAlchemyError
 
-@app.post("/enrollments/demo-fail")
-def create_enrollment_fail(payload: EnrollmentCreate):
-    insert_enrollment_sql = """
-        INSERT INTO enrollments (student_id, class_section_id)
-        VALUES (:student_id, :class_section_id)
-    """
-    # Cố tình truyền event_type = 'LOI_GIA_LAP' để vi phạm ràng buộc CHECK đã tạo ở migration 001
-    event_sql = """
-        INSERT INTO enrollment_events 
-            (student_id, class_section_id, event_type, source, dataset)
-        VALUES 
-            (:student_id, :class_section_id, 'LOI_GIA_LAP', 'api', 'demo')
-    """
-    parameters = {
-        "student_id": payload.student_id,
-        "class_section_id": payload.class_section_id,
-    }
+# @app.post("/enrollments/demo-fail")
+# def create_enrollment_fail(payload: EnrollmentCreate):
+#     insert_enrollment_sql = """
+#         INSERT INTO enrollments (student_id, class_section_id)
+#         VALUES (:student_id, :class_section_id)
+#     """
+#     # Cố tình truyền event_type = 'LOI_GIA_LAP' để vi phạm ràng buộc CHECK đã tạo ở migration 001
+#     event_sql = """
+#         INSERT INTO enrollment_events 
+#             (student_id, class_section_id, event_type, source, dataset)
+#         VALUES 
+#             (:student_id, :class_section_id, 'LOI_GIA_LAP', 'api', 'demo')
+#     """
+#     parameters = {
+#         "student_id": payload.student_id,
+#         "class_section_id": payload.class_section_id,
+#     }
 
-    try:
-        with engine.begin() as connection:
-            # Lệnh 1: Thêm đăng ký (Sẽ thành công)
-            connection.execute(text(insert_enrollment_sql), parameters)
+#     try:
+#         with engine.begin() as connection:
+#             # Lệnh 1: Thêm đăng ký (Sẽ thành công)
+#             connection.execute(text(insert_enrollment_sql), parameters)
             
-            # Lệnh 2: Thêm sự kiện (Sẽ bị lỗi vì LOI_GIA_LAP không nằm trong IN ('CREATED', 'CANCELLED'))
-            connection.execute(text(event_sql), parameters)
+#             # Lệnh 2: Thêm sự kiện (Sẽ bị lỗi vì LOI_GIA_LAP không nằm trong IN ('CREATED', 'CANCELLED'))
+#             connection.execute(text(event_sql), parameters)
             
-    except SQLAlchemyError as exc:
-        return {"message": "Transaction da bi rollback", "error": str(exc)}
+#     except SQLAlchemyError as exc:
+#         return {"message": "Transaction da bi rollback", "error": str(exc)}
