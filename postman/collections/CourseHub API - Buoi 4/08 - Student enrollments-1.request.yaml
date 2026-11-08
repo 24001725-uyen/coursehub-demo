@@ -1,0 +1,6 @@
+$kind: http-request
+name: 08 - Student enrollments
+url: "{{base_url}}/students/22000001/enrollments"
+method: GET
+examples: .resources/08 - Student enrollments.resources/examples
+order: 6000

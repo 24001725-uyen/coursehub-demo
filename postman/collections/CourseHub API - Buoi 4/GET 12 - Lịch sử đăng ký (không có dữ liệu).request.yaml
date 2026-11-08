@@ -1,0 +1,10 @@
+$kind: http-request
+description: ""
+url: "{{base_url}}/enrollment-events?student_id=99999999"
+method: GET
+queryParams:
+  - key: student_id
+    value: "99999999"
+    disabled: false
+    description: ""
+order: 15000
