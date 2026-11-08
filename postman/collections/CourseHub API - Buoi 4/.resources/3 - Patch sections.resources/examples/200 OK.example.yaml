@@ -1,0 +1,24 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/sections/WEB-01/capacity"
+  method: PATCH
+  body:
+    type: json
+    content: '{"capacity": 4}'
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    date: Sun, 11 Oct 2026 10:33:46 GMT
+    server: uvicorn
+    content-length: "81"
+    content-type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "message": "Cap nhat suc chua thanh cong",
+        "section_id": "WEB-01",
+        "new_capacity": 4
+      }
+order: 1000
