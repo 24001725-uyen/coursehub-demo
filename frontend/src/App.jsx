@@ -6,6 +6,7 @@ import EnrollmentList from "./components/EnrollmentList.jsx";
 import StudentForm from "./components/StudentForm.jsx";
 
 const EVENT_PAGE_SIZE = 10;
+const SECTION_PAGE_SIZE = 20;
 
 export default function App() {
   const [draftId, setDraftId] = useState("22000004");
@@ -13,6 +14,10 @@ export default function App() {
 
   const [courses, setCourses] = useState([]);
   const [sections, setSections] = useState([]);
+  const [sectionsTotal, setSectionsTotal] = useState(0);
+  const [sectionPage, setSectionPage] = useState(0);
+  const [sectionsLoading, setSectionsLoading] = useState(true);
+  const [sectionsError, setSectionsError] = useState("");
   const [enrollments, setEnrollments] = useState([]);
   const [events, setEvents] = useState([]);
   const [eventTotal, setEventTotal] = useState(0);
@@ -40,22 +45,19 @@ export default function App() {
       setError("");
 
       try {
-        const [courseData, sectionData, enrollmentData] = await Promise.all([
+        const [courseData, enrollmentData] = await Promise.all([
           api("/courses", options),
-          api("/sections", options),
           api(`/students/${encodeURIComponent(studentId)}/enrollments`, options),
         ]);
 
         if (controller.signal.aborted) return;
 
         setCourses(courseData);
-        setSections(sectionData);
         setEnrollments(enrollmentData);
       } catch (err) {
         if (controller.signal.aborted) return;
         setError(err.message);
         setCourses([]);
-        setSections([]);
         setEnrollments([]);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -66,6 +68,51 @@ export default function App() {
 
     return () => controller.abort();
   }, [studentId, refresh]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      skip: String(sectionPage * SECTION_PAGE_SIZE),
+      limit: String(SECTION_PAGE_SIZE),
+    });
+    const keyword = search.trim();
+    if (keyword) params.set("q", keyword);
+    if (courseFilter) params.set("course_code", courseFilter);
+    if (onlyAvailable) params.set("available_only", "true");
+
+    async function loadSections() {
+      setSectionsLoading(true);
+      setSectionsError("");
+
+      try {
+        const sectionData = await api(`/sections?${params}`, {
+          signal: controller.signal,
+        });
+
+        if (controller.signal.aborted) return;
+        if (
+          !Array.isArray(sectionData.sections) ||
+          !Number.isFinite(sectionData.total)
+        ) {
+          throw new Error("API danh sách lớp trả về dữ liệu phân trang không hợp lệ.");
+        }
+
+        setSections(sectionData.sections);
+        setSectionsTotal(sectionData.total);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setSectionsError(err.message);
+        setSections([]);
+        setSectionsTotal(0);
+      } finally {
+        if (!controller.signal.aborted) setSectionsLoading(false);
+      }
+    }
+
+    loadSections();
+
+    return () => controller.abort();
+  }, [search, courseFilter, onlyAvailable, sectionPage, refresh]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -82,6 +129,12 @@ export default function App() {
         );
 
         if (controller.signal.aborted) return;
+        if (
+          !Array.isArray(eventData.events) ||
+          !Number.isFinite(eventData.total)
+        ) {
+          throw new Error("API lịch sử trả về dữ liệu phân trang không hợp lệ.");
+        }
 
         setEvents(eventData.events);
         setEventTotal(eventData.total);
@@ -152,28 +205,20 @@ export default function App() {
     }
   }
 
-  const keyword = search.trim().toLowerCase();
-
   const rows = sections
     .map((section) => ({
       ...section,
-      course_name:
-        courses.find((course) => course.code === section.course_code)?.name ??
-        section.course_code,
+      course_name: section.course_name ?? section.course_code,
       registered: enrollments.some(
         (item) => item.class_section_id === section.class_id
       ),
-    }))
-    .filter(
-      (row) =>
-        (!courseFilter || row.course_code === courseFilter) &&
-        `${row.class_id} ${row.course_code} ${row.course_name}`
-          .toLowerCase()
-          .includes(keyword) &&
-        (!onlyAvailable || row.remaining > 0)
-    );
+    }));
 
-  const disabled = loading || busy || Boolean(error);
+  const disabled = loading || sectionsLoading || busy || Boolean(error);
+  const sectionPageCount = Math.max(
+    1,
+    Math.ceil(sectionsTotal / SECTION_PAGE_SIZE)
+  );
   const eventPageCount = Math.max(1, Math.ceil(eventTotal / EVENT_PAGE_SIZE));
 
   return (
@@ -216,7 +261,10 @@ export default function App() {
                 id="search"
                 value={search}
                 placeholder="Ví dụ: web"
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setSectionPage(0);
+                }}
               />
               <label htmlFor="course-filter" className="sr-only">
                 Lọc theo học phần
@@ -225,7 +273,10 @@ export default function App() {
                 id="course-filter"
                 aria-label="Lọc theo học phần"
                 value={courseFilter}
-                onChange={(e) => setCourseFilter(e.target.value)}
+                onChange={(e) => {
+                  setCourseFilter(e.target.value);
+                  setSectionPage(0);
+                }}
               >
                 <option value="">Tất cả học phần</option>
                 {courses.map((course) => (
@@ -238,7 +289,10 @@ export default function App() {
                 <input
                   type="checkbox"
                   checked={onlyAvailable}
-                  onChange={(e) => setOnlyAvailable(e.target.checked)}
+                  onChange={(e) => {
+                    setOnlyAvailable(e.target.checked);
+                    setSectionPage(0);
+                  }}
                 />
                 Chỉ hiện lớp còn chỗ
               </label>
@@ -246,6 +300,12 @@ export default function App() {
             <SectionTable
               rows={rows}
               disabled={disabled}
+              loading={sectionsLoading}
+              error={sectionsError}
+              total={sectionsTotal}
+              page={sectionPage}
+              pageCount={sectionPageCount}
+              onPageChange={setSectionPage}
               onEnroll={(id) => changeEnrollment(id)}
             />
           </section>

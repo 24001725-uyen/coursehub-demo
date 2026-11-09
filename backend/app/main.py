@@ -94,18 +94,82 @@ def get_course(course_code: str) -> dict[str, object]:
 
 @app.get("/sections")
 def list_sections(
-    available_only: bool = False,
-    ) -> list[dict[str, object]]:
+    q: str | None = Query(
+        default=None,
+        min_length=1,
+        description="Tu khoa tim trong ma lop, ma hoc phan va ten hoc phan.",
+    ),
+    course_code: str | None = Query(
+        default=None,
+        min_length=1,
+        description="Loc theo ma hoc phan.",
+    ),
+    available_only: bool = Query(
+        default=False,
+        description="Chi tra ve lop con cho.",
+    ),
+    skip: int = Query(default=0, ge=0, description="So dong bo qua."),
+    limit: int = Query(
+        default=20,
+        ge=1,
+        le=100,
+        description="So dong moi trang (mac dinh 20, toi da 100).",
+    ),
+) -> dict[str, object]:
+    """Search and paginate sections, ordered stably by class_id ascending."""
     sql = """
-    SELECT class_id, course_code, capacity, enrolled, remaining
-    FROM v_section_summary
+        SELECT section.class_id, section.course_code, course.name AS course_name,
+            section.capacity, section.enrolled, section.remaining
+        FROM v_section_summary AS section
+        JOIN courses AS course ON course.code = section.course_code
     """
+    count_sql = """
+        SELECT COUNT(*)
+        FROM v_section_summary AS section
+        JOIN courses AS course ON course.code = section.course_code
+    """
+    conditions = []
+    parameters: dict[str, object] = {"skip": skip, "limit": limit}
+
+    if q is not None:
+        keyword = q.strip().lower()
+        if not keyword:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Tu khoa tim kiem khong duoc rong",
+            )
+        conditions.append(
+            "(LOWER(section.class_id) LIKE :keyword "
+            "OR LOWER(section.course_code) LIKE :keyword "
+            "OR LOWER(course.name) LIKE :keyword)"
+        )
+        parameters["keyword"] = f"%{keyword}%"
+
+    if course_code is not None:
+        conditions.append("section.course_code = :course_code")
+        parameters["course_code"] = course_code.upper()
+
     if available_only:
-        sql += " WHERE remaining > 0"
-    sql += " ORDER BY class_id"
+        conditions.append("section.remaining > 0")
+
+    if conditions:
+        where_clause = " WHERE " + " AND ".join(conditions)
+        sql += where_clause
+        count_sql += where_clause
+
+    sql += " ORDER BY section.class_id ASC LIMIT :limit OFFSET :skip"
     with engine.connect() as connection:
-        rows = connection.execute(text(sql)).mappings().all()
-    return [dict(row) for row in rows]
+        total = connection.execute(
+            text(count_sql),
+            {key: value for key, value in parameters.items() if key not in {"skip", "limit"}},
+        ).scalar_one()
+        rows = connection.execute(text(sql), parameters).mappings().all()
+    return {
+        "sections": [dict(row) for row in rows],
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+    }
 
 @app.get("/students/{student_id}/enrollments")
 def list_student_enrollments(student_id: str) -> list[dict[str, object]]:
@@ -409,30 +473,55 @@ from typing import Optional
 def get_enrollment_events(
     student_id: Optional[str] = None,
     event_type: Optional[str] = None,
+    dataset: Optional[str] = None,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100)
-):
+    limit: int = Query(20, ge=1, le=100),
+) -> dict[str, object]:
     sql = """
         SELECT id, student_id, class_section_id, event_type, source, dataset, occurred_at
         FROM enrollment_events
         WHERE 1=1
     """
-    parameters = {"skip": skip, "limit": limit}
+    count_sql = """
+        SELECT COUNT(*)
+        FROM enrollment_events
+        WHERE 1=1
+    """
+    parameters: dict[str, object] = {"skip": skip, "limit": limit}
+    count_parameters: dict[str, object] = {}
 
     if student_id:
         sql += " AND student_id = :student_id"
+        count_sql += " AND student_id = :student_id"
         parameters["student_id"] = student_id
+        count_parameters["student_id"] = student_id
     
     if event_type:
         sql += " AND event_type = :event_type"
+        count_sql += " AND event_type = :event_type"
         parameters["event_type"] = event_type
+        count_parameters["event_type"] = event_type
+
+    if dataset:
+        sql += " AND dataset = :dataset"
+        count_sql += " AND dataset = :dataset"
+        parameters["dataset"] = dataset
+        count_parameters["dataset"] = dataset
 
     sql += " ORDER BY occurred_at DESC, id DESC LIMIT :limit OFFSET :skip"
 
     with engine.begin() as connection:
+        total = connection.execute(
+            text(count_sql), count_parameters
+        ).scalar_one()
         rows = connection.execute(text(sql), parameters).mappings().all()
     
-    return {"events": [dict(row) for row in rows]}
+    return {
+        "events": [dict(row) for row in rows],
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+    }
 # Bai 2: 
 # from sqlalchemy.exc import SQLAlchemyError
 
