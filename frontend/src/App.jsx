@@ -5,6 +5,8 @@ import SectionTable from "./components/SectionTable.jsx";
 import EnrollmentList from "./components/EnrollmentList.jsx";
 import StudentForm from "./components/StudentForm.jsx";
 
+const EVENT_PAGE_SIZE = 10;
+
 export default function App() {
   const [draftId, setDraftId] = useState("22000004");
   const [studentId, setStudentId] = useState("22000004");
@@ -12,6 +14,11 @@ export default function App() {
   const [courses, setCourses] = useState([]);
   const [sections, setSections] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [eventTotal, setEventTotal] = useState(0);
+  const [eventPage, setEventPage] = useState(0);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsError, setEventsError] = useState("");
 
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState("");
@@ -60,6 +67,39 @@ export default function App() {
     return () => controller.abort();
   }, [studentId, refresh]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    const skip = eventPage * EVENT_PAGE_SIZE;
+
+    async function loadEvents() {
+      setEventsLoading(true);
+      setEventsError("");
+
+      try {
+        const eventData = await api(
+          `/enrollment-events?student_id=${encodeURIComponent(studentId)}&dataset=demo&limit=${EVENT_PAGE_SIZE}&skip=${skip}`,
+          { signal: controller.signal }
+        );
+
+        if (controller.signal.aborted) return;
+
+        setEvents(eventData.events);
+        setEventTotal(eventData.total);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setEventsError(err.message);
+        setEvents([]);
+        setEventTotal(0);
+      } finally {
+        if (!controller.signal.aborted) setEventsLoading(false);
+      }
+    }
+
+    loadEvents();
+
+    return () => controller.abort();
+  }, [studentId, eventPage, refresh]);
+
   function chooseStudent(event) {
     event.preventDefault();
     const nextId = draftId.trim();
@@ -71,6 +111,7 @@ export default function App() {
 
     setNotice({ kind: "info", text: "" });
     setLoading(true);
+    setEventPage(0);
     setStudentId(nextId);
     setRefresh((value) => value + 1);
   }
@@ -133,6 +174,7 @@ export default function App() {
     );
 
   const disabled = loading || busy || Boolean(error);
+  const eventPageCount = Math.max(1, Math.ceil(eventTotal / EVENT_PAGE_SIZE));
 
   return (
     <main className="container">
@@ -218,6 +260,57 @@ export default function App() {
               disabled={disabled}
               onCancel={(id) => changeEnrollment(id, true)}
             />
+          </section>
+
+          <section className="panel">
+            <h2>4. Lịch sử đăng ký</h2>
+            <p className="muted">
+              Nhật ký demo của sinh viên {studentId} · {eventTotal} sự kiện
+            </p>
+            <Notice kind="error">{eventsError}</Notice>
+            {eventsLoading ? (
+              <p role="status">Đang tải nhật ký...</p>
+            ) : eventsError ? null : events.length === 0 ? (
+              <p className="muted">Chưa có sự kiện demo.</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Thời gian</th>
+                    <th scope="col">Lớp học phần</th>
+                    <th scope="col">Sự kiện</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {events.map((item) => (
+                    <tr key={item.id}>
+                      <td>{new Date(item.occurred_at).toLocaleString("vi-VN")}</td>
+                      <td>{item.class_section_id}</td>
+                      <td>{item.event_type}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div className="filters">
+              <button
+                type="button"
+                disabled={eventPage === 0 || eventsLoading}
+                onClick={() => setEventPage((page) => page - 1)}
+              >
+                Trang trước
+              </button>
+              <span aria-live="polite">
+                Trang {eventPage + 1} / {eventPageCount}
+              </span>
+              <button
+                type="button"
+                disabled={eventPage + 1 >= eventPageCount || eventsLoading}
+                onClick={() => setEventPage((page) => page + 1)}
+              >
+                Trang sau
+              </button>
+            </div>
           </section>
         </div>
       )}
