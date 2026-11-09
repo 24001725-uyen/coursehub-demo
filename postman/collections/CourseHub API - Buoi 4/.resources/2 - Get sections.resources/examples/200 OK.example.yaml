@@ -1,0 +1,26 @@
+$kind: http-example
+request:
+  url: "{{base_url}}/sections/WEB-01"
+  method: GET
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    date: Sun, 11 Oct 2026 10:29:10 GMT
+    server: uvicorn
+    content-length: "196"
+    content-type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "section_id": "WEB-01",
+        "course_code": "INT2204",
+        "course_name": "Co so du lieu Web va he thong thong tin",
+        "semester": "2026-1",
+        "lecturer_name": "Nguyen Thu Lan",
+        "capacity": 3,
+        "enrolled": 2,
+        "remaining": 1
+      }
+order: 1000
