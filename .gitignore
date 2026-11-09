@@ -1,4 +1,10 @@
 __pycache__/
 *.pyc
 .venv/
+.postman/
+
+# frontend
 .env
+.env.local
+node_modules/
+dist/

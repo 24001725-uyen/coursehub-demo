@@ -11,12 +11,23 @@ from .schemas import EnrollmentCreate
 from .schemas import UpdateCapacityRequest
 from typing import Optional
 
+from fastapi.middleware.cors import CORSMiddleware
+
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
 title="CourseHub API",
 version="0.4.0",
 description="API thuc hanh Buoi 4 - transaction, locking va hieu nang",
+)
+
+# Buoi 5: chi cho phep frontend local goi API qua trinh duyet.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Content-Type"],
 )
 
 @app.get("/")
@@ -31,7 +42,7 @@ def health_check() -> dict[str, str]:
     except SQLAlchemyError as exc:
         logger.exception("Khong ket noi duoc co so du lieu")
         raise HTTPException(
-            status_0code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Khong ket noi duoc co so du lieu",
         ) from exc
     return {"status": "ok", "database": "connected"}
