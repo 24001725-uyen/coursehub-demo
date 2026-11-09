@@ -3,6 +3,10 @@ import { api } from "./api.js";
 import Notice from "./components/Notice.jsx";
 import SectionTable from "./components/SectionTable.jsx";
 import EnrollmentList from "./components/EnrollmentList.jsx";
+import StudentForm from "./components/StudentForm.jsx";
+
+const EVENT_PAGE_SIZE = 10;
+const SECTION_PAGE_SIZE = 20;
 
 export default function App() {
   const [draftId, setDraftId] = useState("22000004");
@@ -10,16 +14,25 @@ export default function App() {
 
   const [courses, setCourses] = useState([]);
   const [sections, setSections] = useState([]);
+  const [sectionsTotal, setSectionsTotal] = useState(0);
+  const [sectionPage, setSectionPage] = useState(0);
+  const [sectionsLoading, setSectionsLoading] = useState(true);
+  const [sectionsError, setSectionsError] = useState("");
   const [enrollments, setEnrollments] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [eventTotal, setEventTotal] = useState(0);
+  const [eventPage, setEventPage] = useState(0);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsError, setEventsError] = useState("");
 
   const [search, setSearch] = useState("");
+  const [courseFilter, setCourseFilter] = useState("");
   const [onlyAvailable, setOnlyAvailable] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // ĐÃ SỬA LỖI Ở ĐÂY: Đóng ngoặc đúng cho notice và thêm state refresh
   const [notice, setNotice] = useState({ kind: "info", text: "" });
   const [refresh, setRefresh] = useState(0);
 
@@ -32,22 +45,19 @@ export default function App() {
       setError("");
 
       try {
-        const [courseData, sectionData, enrollmentData] = await Promise.all([
+        const [courseData, enrollmentData] = await Promise.all([
           api("/courses", options),
-          api("/sections", options),
           api(`/students/${encodeURIComponent(studentId)}/enrollments`, options),
         ]);
 
         if (controller.signal.aborted) return;
 
         setCourses(courseData);
-        setSections(sectionData);
         setEnrollments(enrollmentData);
       } catch (err) {
         if (controller.signal.aborted) return;
         setError(err.message);
         setCourses([]);
-        setSections([]);
         setEnrollments([]);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -59,11 +69,94 @@ export default function App() {
     return () => controller.abort();
   }, [studentId, refresh]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      skip: String(sectionPage * SECTION_PAGE_SIZE),
+      limit: String(SECTION_PAGE_SIZE),
+    });
+    const keyword = search.trim();
+    if (keyword) params.set("q", keyword);
+    if (courseFilter) params.set("course_code", courseFilter);
+    if (onlyAvailable) params.set("available_only", "true");
+
+    async function loadSections() {
+      setSectionsLoading(true);
+      setSectionsError("");
+
+      try {
+        const sectionData = await api(`/sections?${params}`, {
+          signal: controller.signal,
+        });
+
+        if (controller.signal.aborted) return;
+        if (
+          !Array.isArray(sectionData.sections) ||
+          !Number.isFinite(sectionData.total)
+        ) {
+          throw new Error("API danh sách lớp trả về dữ liệu phân trang không hợp lệ.");
+        }
+
+        setSections(sectionData.sections);
+        setSectionsTotal(sectionData.total);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setSectionsError(err.message);
+        setSections([]);
+        setSectionsTotal(0);
+      } finally {
+        if (!controller.signal.aborted) setSectionsLoading(false);
+      }
+    }
+
+    loadSections();
+
+    return () => controller.abort();
+  }, [search, courseFilter, onlyAvailable, sectionPage, refresh]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const skip = eventPage * EVENT_PAGE_SIZE;
+
+    async function loadEvents() {
+      setEventsLoading(true);
+      setEventsError("");
+
+      try {
+        const eventData = await api(
+          `/enrollment-events?student_id=${encodeURIComponent(studentId)}&dataset=demo&limit=${EVENT_PAGE_SIZE}&skip=${skip}`,
+          { signal: controller.signal }
+        );
+
+        if (controller.signal.aborted) return;
+        if (
+          !Array.isArray(eventData.events) ||
+          !Number.isFinite(eventData.total)
+        ) {
+          throw new Error("API lịch sử trả về dữ liệu phân trang không hợp lệ.");
+        }
+
+        setEvents(eventData.events);
+        setEventTotal(eventData.total);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setEventsError(err.message);
+        setEvents([]);
+        setEventTotal(0);
+      } finally {
+        if (!controller.signal.aborted) setEventsLoading(false);
+      }
+    }
+
+    loadEvents();
+
+    return () => controller.abort();
+  }, [studentId, eventPage, refresh]);
+
   function chooseStudent(event) {
     event.preventDefault();
     const nextId = draftId.trim();
 
-    // ĐÃ SỬA LỖI Ở ĐÂY: Xóa khoảng trắng thừa trong Regex
     if (!/^\d{8}$/.test(nextId)) {
       setNotice({ kind: "error", text: "Mã demo phải gồm 8 chữ số." });
       return;
@@ -71,6 +164,7 @@ export default function App() {
 
     setNotice({ kind: "info", text: "" });
     setLoading(true);
+    setEventPage(0);
     setStudentId(nextId);
     setRefresh((value) => value + 1);
   }
@@ -111,26 +205,21 @@ export default function App() {
     }
   }
 
-  const keyword = search.trim().toLowerCase();
-
   const rows = sections
     .map((section) => ({
       ...section,
-      course_name:
-        courses.find((course) => course.code === section.course_code)?.name ??
-        section.course_code,
+      course_name: section.course_name ?? section.course_code,
       registered: enrollments.some(
         (item) => item.class_section_id === section.class_id
       ),
-    }))
-    .filter(
-      (row) =>
-        `${row.class_id} ${row.course_code} ${row.course_name}`
-          .toLowerCase()
-          .includes(keyword) && (!onlyAvailable || row.remaining > 0)
-    );
+    }));
 
-  const disabled = loading || busy || Boolean(error);
+  const disabled = loading || sectionsLoading || busy || Boolean(error);
+  const sectionPageCount = Math.max(
+    1,
+    Math.ceil(sectionsTotal / SECTION_PAGE_SIZE)
+  );
+  const eventPageCount = Math.max(1, Math.ceil(eventTotal / EVENT_PAGE_SIZE));
 
   return (
     <main className="container">
@@ -146,34 +235,16 @@ export default function App() {
       </p>
 
       <section className="panel">
-        {/* ĐÃ SỬA LỖI Ở ĐÂY: Gom số 1 vào trong thẻ h2 */}
         <h2>1. Chọn sinh viên</h2>
-        <form className="student-form" onSubmit={chooseStudent}>
-          <label htmlFor="student-id">Mã sinh viên</label>
-          <input
-            id="student-id"
-            value={draftId}
-            maxLength={8}
-            required
-            inputMode="numeric"
-            onChange={(e) => setDraftId(e.target.value)}
-            disabled={busy}
-          />
-          <button type="submit" disabled={busy}>
-            Xem đăng ký
-          </button>
-          <button
-            type="button"
-            className="secondary"
-            disabled={busy || loading}
-            onClick={() => setRefresh((value) => value + 1)}
-          >
-            Tải lại dữ liệu
-          </button>
-        </form>
-        <p className="muted">
-          Dữ liệu đang xem: <strong>{studentId}</strong>. Mã mẫu: 22000001–22000004.
-        </p>
+        <StudentForm
+          draftId={draftId}
+          studentId={studentId}
+          busy={busy}
+          loading={loading}
+          onDraftChange={setDraftId}
+          onSubmit={chooseStudent}
+          onRefresh={() => setRefresh((value) => value + 1)}
+        />
       </section>
 
       <Notice kind={notice.kind}>{notice.text}</Notice>
@@ -190,13 +261,38 @@ export default function App() {
                 id="search"
                 value={search}
                 placeholder="Ví dụ: web"
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setSectionPage(0);
+                }}
               />
+              <label htmlFor="course-filter" className="sr-only">
+                Lọc theo học phần
+              </label>
+              <select
+                id="course-filter"
+                aria-label="Lọc theo học phần"
+                value={courseFilter}
+                onChange={(e) => {
+                  setCourseFilter(e.target.value);
+                  setSectionPage(0);
+                }}
+              >
+                <option value="">Tất cả học phần</option>
+                {courses.map((course) => (
+                  <option key={course.code} value={course.code}>
+                    {course.code} - {course.name}
+                  </option>
+                ))}
+              </select>
               <label className="check">
                 <input
                   type="checkbox"
                   checked={onlyAvailable}
-                  onChange={(e) => setOnlyAvailable(e.target.checked)}
+                  onChange={(e) => {
+                    setOnlyAvailable(e.target.checked);
+                    setSectionPage(0);
+                  }}
                 />
                 Chỉ hiện lớp còn chỗ
               </label>
@@ -204,6 +300,12 @@ export default function App() {
             <SectionTable
               rows={rows}
               disabled={disabled}
+              loading={sectionsLoading}
+              error={sectionsError}
+              total={sectionsTotal}
+              page={sectionPage}
+              pageCount={sectionPageCount}
+              onPageChange={setSectionPage}
               onEnroll={(id) => changeEnrollment(id)}
             />
           </section>
@@ -218,6 +320,57 @@ export default function App() {
               disabled={disabled}
               onCancel={(id) => changeEnrollment(id, true)}
             />
+          </section>
+
+          <section className="panel">
+            <h2>4. Lịch sử đăng ký</h2>
+            <p className="muted">
+              Nhật ký demo của sinh viên {studentId} · {eventTotal} sự kiện
+            </p>
+            <Notice kind="error">{eventsError}</Notice>
+            {eventsLoading ? (
+              <p role="status">Đang tải nhật ký...</p>
+            ) : eventsError ? null : events.length === 0 ? (
+              <p className="muted">Chưa có sự kiện demo.</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Thời gian</th>
+                    <th scope="col">Lớp học phần</th>
+                    <th scope="col">Sự kiện</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {events.map((item) => (
+                    <tr key={item.id}>
+                      <td>{new Date(item.occurred_at).toLocaleString("vi-VN")}</td>
+                      <td>{item.class_section_id}</td>
+                      <td>{item.event_type}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div className="filters">
+              <button
+                type="button"
+                disabled={eventPage === 0 || eventsLoading}
+                onClick={() => setEventPage((page) => page - 1)}
+              >
+                Trang trước
+              </button>
+              <span aria-live="polite">
+                Trang {eventPage + 1} / {eventPageCount}
+              </span>
+              <button
+                type="button"
+                disabled={eventPage + 1 >= eventPageCount || eventsLoading}
+                onClick={() => setEventPage((page) => page + 1)}
+              >
+                Trang sau
+              </button>
+            </div>
           </section>
         </div>
       )}
