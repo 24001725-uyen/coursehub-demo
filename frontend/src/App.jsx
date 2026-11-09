@@ -3,6 +3,7 @@ import { api } from "./api.js";
 import Notice from "./components/Notice.jsx";
 import SectionTable from "./components/SectionTable.jsx";
 import EnrollmentList from "./components/EnrollmentList.jsx";
+import StudentForm from "./components/StudentForm.jsx";
 
 export default function App() {
   const [draftId, setDraftId] = useState("22000004");
@@ -19,7 +20,6 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // ĐÃ SỬA LỖI Ở ĐÂY: Đóng ngoặc đúng cho notice và thêm state refresh
   const [notice, setNotice] = useState({ kind: "info", text: "" });
   const [refresh, setRefresh] = useState(0);
 
@@ -63,7 +63,6 @@ export default function App() {
     event.preventDefault();
     const nextId = draftId.trim();
 
-    // ĐÃ SỬA LỖI Ở ĐÂY: Xóa khoảng trắng thừa trong Regex
     if (!/^\d{8}$/.test(nextId)) {
       setNotice({ kind: "error", text: "Mã demo phải gồm 8 chữ số." });
       return;
@@ -146,34 +145,16 @@ export default function App() {
       </p>
 
       <section className="panel">
-        {/* ĐÃ SỬA LỖI Ở ĐÂY: Gom số 1 vào trong thẻ h2 */}
         <h2>1. Chọn sinh viên</h2>
-        <form className="student-form" onSubmit={chooseStudent}>
-          <label htmlFor="student-id">Mã sinh viên</label>
-          <input
-            id="student-id"
-            value={draftId}
-            maxLength={8}
-            required
-            inputMode="numeric"
-            onChange={(e) => setDraftId(e.target.value)}
-            disabled={busy}
-          />
-          <button type="submit" disabled={busy}>
-            Xem đăng ký
-          </button>
-          <button
-            type="button"
-            className="secondary"
-            disabled={busy || loading}
-            onClick={() => setRefresh((value) => value + 1)}
-          >
-            Tải lại dữ liệu
-          </button>
-        </form>
-        <p className="muted">
-          Dữ liệu đang xem: <strong>{studentId}</strong>. Mã mẫu: 22000001–22000004.
-        </p>
+        <StudentForm
+          draftId={draftId}
+          studentId={studentId}
+          busy={busy}
+          loading={loading}
+          onDraftChange={setDraftId}
+          onSubmit={chooseStudent}
+          onRefresh={() => setRefresh((value) => value + 1)}
+        />
       </section>
 
       <Notice kind={notice.kind}>{notice.text}</Notice>
