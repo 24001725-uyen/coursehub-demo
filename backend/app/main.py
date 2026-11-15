@@ -47,31 +47,31 @@ def health_check() -> dict[str, str]:
         ) from exc
     return {"status": "ok", "database": "connected"}
 
-@app.get("/courses")
-def list_courses(
-    q: str | None = Query(default=None, min_length=1),
-) -> list[dict[str, object]]:
-    sql = """
-        SELECT code, name, credits
-        FROM courses
-    """
-    parameters: dict[str, object] = {}
-    if q is not None:
-        keyword = q.strip().lower()
-        if not keyword:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Tu khoa tim kiem khong duoc rong",
-            )
-        sql += """
-            WHERE LOWER(code) LIKE :keyword
-                OR LOWER(name) LIKE :keyword
-        """
-        parameters["keyword"] = f"%{keyword}%"
-    sql += " ORDER BY code"
-    with engine.connect() as connection:
-        rows = connection.execute(text(sql), parameters).mappings().all()
-    return [dict(row) for row in rows]
+# @app.get("/courses")
+# def list_courses(
+#     q: str | None = Query(default=None, min_length=1),
+# ) -> list[dict[str, object]]:
+#     sql = """
+#         SELECT code, name, credits
+#         FROM courses
+#     """
+#     parameters: dict[str, object] = {}
+#     if q is not None:
+#         keyword = q.strip().lower()
+#         if not keyword:
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail="Tu khoa tim kiem khong duoc rong",
+#             )
+#         sql += """
+#             WHERE LOWER(code) LIKE :keyword
+#                 OR LOWER(name) LIKE :keyword
+#         """
+#         parameters["keyword"] = f"%{keyword}%"
+#     sql += " ORDER BY code"
+#     with engine.connect() as connection:
+#         rows = connection.execute(text(sql), parameters).mappings().all()
+#     return [dict(row) for row in rows]
 
 @app.get("/courses/{course_code}")
 def get_course(course_code: str) -> dict[str, object]:
