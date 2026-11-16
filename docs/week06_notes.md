@@ -29,3 +29,9 @@ dist/assets/index-DeD3hrba.js   154.28 kB │ gzip: 49.91 kB
 - PR: #18 (Feature/week06-docker-ci -> main)
 - Reviewer: 24001725-uyen
 - CI run: pass
+
+## Bài 2 (Bài tập tự thực hành)
+- Cố tình đổi từ VITE_API_BASE_URL: /api thành VITE_API_BASE_URL: /api_typo
+- Mở cổng http://localhost:8081/ và nhận được kết quả: HTTP 200: phản hồi không phải JSON 
+- Sửa lại đúng về /api
+- Kiểm tra sau sửa thành công 
